@@ -1,7 +1,8 @@
+import json
 import os
 import time
 import pandas as pd
-from config import EXPORTS_DIR
+from config import DATA_DIR, EXPORTS_DIR
 
 
 class ExportView:
@@ -13,10 +14,7 @@ class ExportView:
         os.makedirs(dossier_sortie, exist_ok=True)
         os.makedirs(EXPORTS_DIR, exist_ok=True)
 
-        donnees = []
-        for p in produits:
-            donnees.append(p.to_dict())
-
+        donnees = [p.to_dict() for p in produits]
         df = pd.DataFrame(donnees)
 
         chemin_csv = os.path.join(dossier_sortie, f"{nom_categorie}.csv")
@@ -31,9 +29,30 @@ class ExportView:
         print(f"Fichier CSV enregistré : {chemin_csv}")
 
     @staticmethod
+    def enregistrer_global(produits):
+        if len(produits) == 0:
+            return
+
+        os.makedirs(EXPORTS_DIR, exist_ok=True)
+        os.makedirs(DATA_DIR, exist_ok=True)
+
+        donnees = [p.to_dict() for p in produits]
+        df = pd.DataFrame(donnees)
+
+        for nom_fichier in ("produits_amazon", "tous_les_produits"):
+            df.to_csv(os.path.join(EXPORTS_DIR, f"{nom_fichier}.csv"), index=False, encoding="utf-8-sig")
+            df.to_excel(os.path.join(EXPORTS_DIR, f"{nom_fichier}.xlsx"), index=False)
+
+        chemin_json = os.path.join(DATA_DIR, "produits.json")
+        with open(chemin_json, "w", encoding="utf-8") as f:
+            json.dump(donnees, f, ensure_ascii=False, indent=2)
+
+    @staticmethod
     def generer_rapport_html(dossier_base, resume, erreurs, debut, fin, depot):
         os.makedirs(dossier_base, exist_ok=True)
+        os.makedirs(EXPORTS_DIR, exist_ok=True)
         chemin_rapport = os.path.join(dossier_base, "extraction_report.html")
+        chemin_rapport_exports = os.path.join(EXPORTS_DIR, "extraction_report.html")
         duree = fin - debut
 
         moyenne = depot.calculer_moyenne()
@@ -50,9 +69,9 @@ class ExportView:
         html += "</ul>\n"
 
         html += "<h2>Statistiques (Mini-Projet)</h2><ul>\n"
-        html += f"<li>Moyenne des prix : {moyenne} €</li>\n"
-        html += f"<li>Prix maximum : {max_prix} € ({nom_max})</li>\n"
-        html += "<li>Nombre par catégorie :<ul>\n"
+        html += f"<li><strong>Moyenne des prix :</strong> {moyenne} €</li>\n"
+        html += f"<li><strong>Prix maximum :</strong> {max_prix} € ({nom_max})</li>\n"
+        html += "<li><strong>Nombre par catégorie :</strong><ul>\n"
         for cat, nb in par_categorie.items():
             html += f"<li>{cat} : {nb} produit(s)</li>\n"
         html += "</ul></li></ul>\n"
@@ -68,7 +87,8 @@ class ExportView:
 
         html += "</body></html>"
 
-        with open(chemin_rapport, "w", encoding="utf-8") as f:
-            f.write(html)
+        for chemin in (chemin_rapport, chemin_rapport_exports):
+            with open(chemin, "w", encoding="utf-8") as f:
+                f.write(html)
 
         print(f"Rapport HTML généré : {chemin_rapport}")

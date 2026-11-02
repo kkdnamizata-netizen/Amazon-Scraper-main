@@ -24,13 +24,18 @@ class AmazonScraper:
 
         options.add_argument(f"--user-agent={USER_AGENT}")
         options.add_argument("--start-maximized")
+        options.add_argument("--disable-blink-features=AutomationControlled")
 
         self.pilote = webdriver.Chrome(options=options)
         return self.pilote
 
     def fermer_navigateur(self):
         if self.pilote:
-            self.pilote.quit()
+            try:
+                self.pilote.quit()
+            except Exception:
+                pass
+            self.pilote = None
 
     def telecharger_page(self, url):
         try:
@@ -50,17 +55,19 @@ class AmazonScraper:
 
         soup = BeautifulSoup(self.pilote.page_source, "html.parser")
         sous_categories = []
+        noms_vus = set()
 
         liens = soup.select("a[href*='/s?']")
         for lien in liens:
             href = lien.get("href")
             nom = lien.get_text(strip=True)
 
-            if href and nom and "ordinateur" in nom.lower():
+            if href and nom and "ordinateur" in nom.lower() and nom.lower() not in noms_vus:
                 if not href.startswith("http"):
                     url_complete = BASE_URL.rstrip("/") + href
                 else:
                     url_complete = href
+                noms_vus.add(nom.lower())
                 sous_categories.append((nom, url_complete))
 
         if len(sous_categories) == 0:
@@ -85,7 +92,11 @@ class AmazonScraper:
         lien_suivant = None
         bouton_suivant = soup.select_one("a.s-pagination-next")
         if bouton_suivant and bouton_suivant.get("href"):
-            lien_suivant = BASE_URL.rstrip("/") + bouton_suivant.get("href")
+            href_suivant = bouton_suivant.get("href")
+            if href_suivant.startswith("http"):
+                lien_suivant = href_suivant
+            else:
+                lien_suivant = BASE_URL.rstrip("/") + href_suivant
 
         return liens_propres, lien_suivant
 
@@ -103,7 +114,10 @@ class AmazonScraper:
         element_prix = soup.select_one(".a-price .a-offscreen")
         prix = element_prix.get_text(strip=True) if element_prix else None
 
-        element_couleur = soup.select_one("#variation_color_name .selection")
+        element_label = soup.select_one("#acBadge_feature_div .ac-badge-text-primary, .p13n-best-seller-badge")
+        label = element_label.get_text(" ", strip=True) if element_label else None
+
+        element_couleur = soup.select_one("#variation_color_name .selection, #inline-twister-expanded-dimension-text-color_name")
         couleur = element_couleur.get_text(strip=True) if element_couleur else None
 
         bullets = []
@@ -147,5 +161,6 @@ class AmazonScraper:
             color=couleur,
             description=description,
             bullets=bullets,
-            images=images
+            images=images,
+            label=label
         )

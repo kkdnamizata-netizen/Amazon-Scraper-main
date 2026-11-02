@@ -14,7 +14,8 @@ class ScrapingController:
         self.resume = {
             "subcategories_processed": 0,
             "products_extracted": 0,
-            "images_downloaded": 0
+            "images_downloaded": 0,
+            "pages_scraped": 0
         }
 
     def scraper_categorie(self, nom_categorie, url_depart):
@@ -37,6 +38,8 @@ class ScrapingController:
 
             if not self.scraper.telecharger_page(url_page):
                 break
+
+            self.resume["pages_scraped"] += 1
 
             liens, lien_suivant = self.scraper.extraire_liens_produits()
             ConsoleView.afficher_message(f"{len(liens)} liens produits trouvés")
@@ -63,19 +66,23 @@ class ScrapingController:
         ConsoleView.afficher_debut()
         debut = time.time()
 
-        self.scraper.ouvrir_navigateur()
+        try:
+            self.scraper.ouvrir_navigateur()
 
-        sous_categories = self.scraper.trouver_sous_categories(TECH_CATEGORY_URL)
-        ConsoleView.afficher_message(f"Trouvé {len(sous_categories)} sous-catégorie(s).")
+            sous_categories = self.scraper.trouver_sous_categories(TECH_CATEGORY_URL)
+            ConsoleView.afficher_message(f"Trouvé {len(sous_categories)} sous-catégorie(s).")
 
-        for nom, lien in sous_categories[:1]:
-            ConsoleView.afficher_message(f"\nScraping de la sous-catégorie : {nom}")
-            self.scraper_categorie(nom, lien)
+            for nom, lien in sous_categories[:1]:
+                ConsoleView.afficher_message(f"\nScraping de la sous-catégorie : {nom}")
+                self.scraper_categorie(nom, lien)
+        finally:
+            self.scraper.fermer_navigateur()
 
         fin = time.time()
 
         ConsoleView.afficher_statistiques(self.depot)
 
+        ExportView.enregistrer_global(self.depot.produits)
         ExportView.generer_rapport_html(
             OUTPUT_DIR,
             self.resume,
@@ -85,5 +92,4 @@ class ScrapingController:
             self.depot
         )
 
-        self.scraper.fermer_navigateur()
         ConsoleView.afficher_message("\nScraping terminé avec succès !")
